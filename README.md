@@ -158,9 +158,11 @@ journalctl --user -u clawdbot-gateway.service | grep -i llm-guard
 - GROQ: `GROQ_API_KEY=*`
 
 ### Company Terms (configurable)
-- Owl Technologies: hydra, forum financial, workstreet
-- Voyidge: pooled trust
-- Fair Weather: trackside.training, fair weather athletics
+Edit `service/config.py` to add your own sensitive terms:
+- Project codenames
+- Internal tool names
+- Client/partner names
+- Domain-specific terminology
 
 ## Troubleshooting
 

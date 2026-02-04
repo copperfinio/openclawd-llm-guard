@@ -1,4 +1,4 @@
-"""LLM Guard configuration for Neubauer's 3-company setup"""
+"""LLM Guard configuration - customize for your organization"""
 from llm_guard.input_scanners import (
     PromptInjection, Secrets, Code, InvisibleText,
     Toxicity, BanSubstrings, Regex
@@ -7,41 +7,45 @@ from llm_guard.output_scanners import (
     Sensitive, MaliciousURLs, NoRefusal, Regex as OutputRegex
 )
 
-# Business-specific API key patterns for Neubauer's companies
+# API key patterns to detect and redact
+# Add patterns specific to your tools and services
 BUSINESS_API_PATTERNS = [
     r"lin_api_[A-Za-z0-9]{32,}",  # Linear API keys
     r"gcp_[A-Za-z0-9_-]{20,}",    # Google Cloud Platform keys
     r"ya29\.[A-Za-z0-9_-]{100,}", # OAuth2 access tokens
-    r"GMAIL_APP_PASSWORD_\d=[a-z]{16}", # Gmail app passwords
-    r"OAUTH_TOKEN_\d=[A-Za-z0-9.-]{50,}", # OAuth tokens
-    r"GROQ_API_KEY=[a-zA-Z0-9_-]{50,}", # GROQ API key
+    r"sk-[A-Za-z0-9]{48,}",       # OpenAI API keys
+    r"xoxb-[A-Za-z0-9-]+",        # Slack bot tokens
+    r"ghp_[A-Za-z0-9]{36,}",      # GitHub personal access tokens
+    # Add your own patterns below:
+    # r"YOUR_SERVICE_[A-Za-z0-9]+",
 ]
 
-# Company-sensitive terms (Owl, Voyidge, Fair Weather)
+# Sensitive terms specific to your organization
+# These will be flagged and optionally redacted
 COMPANY_SENSITIVE_TERMS = [
-    "hydra",           # Owl Technologies CRM
-    "forum financial",
-    "workstreet",
-    "pooled trust",    # Voyidge
-    "scott mury",
-    "voyidge",
-    "trackside.training", # Fair Weather Athletics
-    "fair weather athletics",
-    "gregory",         # Owl second-in-command
-    "prabhu",         # Voyidge team member
+    # Add your sensitive terms here, for example:
+    # "project-codename",
+    # "internal-tool-name",
+    # "client-name",
+    # "partner-company",
 ]
 
 def create_input_scanners():
     """Create input scanners for external content"""
-    return [
+    scanners = [
         PromptInjection(threshold=0.8),
         Secrets(redact_mode=True),
         Code(languages=["Python", "JavaScript", "Go", "PowerShell"]),
         InvisibleText(),
         Toxicity(threshold=0.7),
-        BanSubstrings(substrings=COMPANY_SENSITIVE_TERMS, redact=True),
         Regex(patterns=BUSINESS_API_PATTERNS, redact=True, is_blocked=True)
     ]
+
+    # Only add BanSubstrings if terms are configured
+    if COMPANY_SENSITIVE_TERMS:
+        scanners.append(BanSubstrings(substrings=COMPANY_SENSITIVE_TERMS, redact=True))
+
+    return scanners
 
 def create_output_scanners():
     """Create output scanners for AI responses"""
