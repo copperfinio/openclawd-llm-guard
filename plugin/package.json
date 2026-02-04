@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw-local/llm-guard-security",
+  "version": "1.0.0",
+  "description": "LLM Guard prompt injection protection for OpenClaw",
+  "type": "module",
+  "main": "index.js",
+  "author": "Neubauer",
+  "license": "MIT",
+  "dependencies": {
+    "@sinclair/typebox": "^0.31.0",
+    "node-fetch": "^3.3.2"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

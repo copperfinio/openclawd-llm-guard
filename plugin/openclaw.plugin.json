@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openclaw.ai/schemas/plugin-config.json",
+  "id": "llm-guard-security",
+  "name": "LLM Guard Security",
+  "version": "1.0.0",
+  "description": "ML-based prompt injection protection using LLM Guard",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable/disable the plugin"
+      }
+    },
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,288 @@
+# LLM Guard Security for OpenClaw
+
+ML-based prompt injection protection for OpenClaw agents.
+
+## Overview
+
+This package provides three protected tools that scan external content for prompt injection attacks before returning it to the agent:
+
+| Original Tool | Protected Tool | Use Case |
+|---------------|----------------|----------|
+| `web_fetch` | `safe_web_fetch` | Fetching external URLs |
+| `browser` | `safe_browser` | Browsing external websites |
+| `read` | `safe_read` | Reading untrusted files |
+
+## Installation
+
+### 1. Install Python Service
+
+```bash
+cd ~/.openclaw/workspace/llm_guard
+./install.sh
+```
+
+This creates a Python virtual environment and installs LLM Guard dependencies.
+
+### 2. Start the Service
+
+**Option A: Systemd (recommended for production)**
+```bash
+# Copy service file
+cp llm-guard.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable llm-guard.service
+systemctl --user start llm-guard.service
+```
+
+**Option B: Manual start**
+```bash
+./start.sh
+```
+
+### 3. Install OpenClaw Plugin
+
+```bash
+openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
+```
+
+### 4. Configure Tool Denial (CRITICAL)
+
+⚠️ **This is the most important step.** Add this to `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "tools": {
+    "sandbox": {
+      "tools": {
+        "deny": ["web_fetch", "browser", "read"],
+        "allow": ["safe_web_fetch", "safe_browser", "safe_read", "exec", "process", "write", "edit", "apply_patch", "image", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "web_search", "memory_search", "message"]
+      }
+    }
+  }
+}
+```
+
+**⚠️ IMPORTANT: Configuration Path Matters!**
+
+| Config Path | Effect |
+|-------------|--------|
+| `tools.deny` | ❌ Display/guidance only - NOT enforced at runtime |
+| `tools.sandbox.tools.deny` | ✅ Actually enforced - blocks tool execution |
+
+Verify your configuration:
+```bash
+openclaw sandbox explain
+```
+
+Expected output should show:
+```
+Sandbox tool policy:
+  allow (global): safe_web_fetch, safe_browser, safe_read, ...
+  deny  (global): web_fetch, browser, read
+```
+
+### 5. Restart Gateway
+
+```bash
+systemctl --user restart clawdbot-gateway.service
+# or
+openclaw gateway restart
+```
+
+### 6. Verify Installation
+
+```bash
+# Check service health
+curl http://127.0.0.1:8765/health
+
+# Check tool policy
+openclaw sandbox explain
+
+# Check gateway logs for plugin
+journalctl --user -u clawdbot-gateway.service | grep -i llm-guard
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    openclaw.json                            │
+│  tools.sandbox.tools.deny: [web_fetch, browser, read]       │
+│  tools.sandbox.tools.allow: [safe_*, ...]                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              LLM Guard Plugin (Node.js)                     │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  safe_web_fetch  │  safe_browser  │  safe_read         ││
+│  │        │                 │               │              ││
+│  │        └─────────────────┼───────────────┘              ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ HTTP (localhost:8765)
+┌─────────────────────────────────────────────────────────────┐
+│              LLM Guard Service (Python)                     │
+│  POST /scan/input  - Scan external content                  │
+│  POST /scan/output - Scan AI output                         │
+│  GET  /health      - Health check                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Components
+
+### Python Service (`service/`)
+- `scanner_service.py` - FastAPI HTTP endpoints on port 8765
+- `config.py` - Business-specific patterns (API keys, company terms)
+- `health_check.py` - Health check utility
+- `test.py` - Integration tests (run with `python test.py`)
+
+### OpenClaw Plugin (`plugin/`)
+- `index.js` - Tool registration entry point
+- `src/llm-guard-client.js` - HTTP client for Python service
+- `src/safe-web-fetch.js` - Protected web fetch
+- `src/safe-browser.js` - Protected browser control
+- `src/safe-read.js` - Protected file reading
+
+## Protected Patterns
+
+### Prompt Injection (ML-based)
+- Model: ProtectAI deberta-v3-base-prompt-injection-v2
+- Threshold: 0.8 (configurable in config.py)
+
+### API Keys
+- Linear: `lin_api_*`
+- Gmail: `GMAIL_APP_PASSWORD_*`
+- OAuth: `ya29.*`, `OAUTH_TOKEN_*`
+- GROQ: `GROQ_API_KEY=*`
+
+### Company Terms (configurable)
+- Owl Technologies: hydra, forum financial, workstreet
+- Voyidge: pooled trust
+- Fair Weather: trackside.training, fair weather athletics
+
+## Troubleshooting
+
+### Original tools still working (denial not enforced)
+
+Most common issue: wrong config path.
+
+**Wrong** (not enforced):
+```json
+{
+  "tools": {
+    "deny": ["web_fetch", "browser", "read"]
+  }
+}
+```
+
+**Correct** (enforced):
+```json
+{
+  "tools": {
+    "sandbox": {
+      "tools": {
+        "deny": ["web_fetch", "browser", "read"]
+      }
+    }
+  }
+}
+```
+
+Verify with: `openclaw sandbox explain`
+
+### Service not responding
+
+```bash
+# Check service status
+systemctl --user status llm-guard.service
+
+# Restart service
+systemctl --user restart llm-guard.service
+
+# Check logs
+journalctl --user -u llm-guard.service --since "5 minutes ago"
+```
+
+### Plugin not loading
+
+```bash
+# Check gateway logs
+journalctl --user -u clawdbot-gateway.service | grep -i "llm-guard"
+
+# Verify plugin syntax
+node --check ~/.openclaw/extensions/llm-guard-security/index.js
+
+# Reinstall plugin
+openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
+systemctl --user restart clawdbot-gateway.service
+```
+
+### False Positives
+
+Adjust thresholds in `service/config.py`:
+```python
+PromptInjection(threshold=0.8)  # Lower = more sensitive
+Toxicity(threshold=0.7)         # Lower = more sensitive
+```
+
+### Memory Usage
+
+Expected: ~1.5-2GB for ML models
+```bash
+ps aux | grep scanner_service
+```
+
+## Testing
+
+```bash
+cd ~/.openclaw/workspace/llm_guard/service
+source venv/bin/activate
+python test.py
+```
+
+## Fallback Behavior
+
+When LLM Guard service is unavailable:
+- Returns unscanned content (if `fallbackOnError: true` in plugin config)
+- Logs warning to gateway logs
+- Health check cached for 30 seconds
+
+## File Structure
+
+```
+llm_guard/
+├── README.md              # This file
+├── install.sh             # Initial setup script
+├── start.sh               # Manual start script
+├── llm-guard.service      # Systemd service file
+├── service/
+│   ├── config.py          # Pattern configuration
+│   ├── scanner_service.py # FastAPI endpoints
+│   ├── health_check.py    # Health utility
+│   ├── test.py            # Integration tests
+│   ├── requirements.txt   # Python dependencies
+│   └── venv/              # Python virtual environment
+└── plugin/
+    ├── index.js           # Tool registration
+    ├── package.json       # npm dependencies
+    ├── openclaw.plugin.json
+    └── src/
+        ├── llm-guard-client.js
+        ├── safe-web-fetch.js
+        ├── safe-browser.js
+        └── safe-read.js
+```
+
+## Requirements
+
+- OpenClaw: v2026.2.1+
+- LLM Guard: 0.3.15+
+- Python: 3.10+
+- Node.js: 20+
+
+## References
+
+- [OpenClaw Sandbox Documentation](https://docs.openclaw.ai/gateway/sandbox-vs-tool-policy-vs-elevated)
+- [LLM Guard Documentation](https://github.com/protectai/llm-guard)
