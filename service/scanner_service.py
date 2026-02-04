@@ -4,19 +4,61 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 import logging
+import sys
 from datetime import datetime
 
-from llm_guard import scan_prompt, scan_output
-from config import create_input_scanners, create_output_scanners
-
-logging.basicConfig(level=logging.INFO)
+# Configure logging with clear format
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="LLM Guard Scanner Service", version="1.0.0")
+# Track service start time for uptime reporting
+SERVICE_START_TIME = None
+SCAN_COUNT = {"input": 0, "output": 0}
 
-# Initialize scanners at startup
-input_scanners = create_input_scanners()
-output_scanners = create_output_scanners()
+def validate_and_create_scanners():
+    """Validate configuration and create scanners with clear error messages"""
+    logger.info("=" * 60)
+    logger.info("LLM Guard Scanner Service Starting")
+    logger.info("=" * 60)
+
+    try:
+        from config import create_input_scanners, create_output_scanners
+
+        logger.info("Creating input scanners...")
+        input_scanners = create_input_scanners()
+        logger.info(f"  ✓ {len(input_scanners)} input scanners created")
+
+        logger.info("Creating output scanners...")
+        output_scanners = create_output_scanners()
+        logger.info(f"  ✓ {len(output_scanners)} output scanners created")
+
+        logger.info("=" * 60)
+        logger.info("Service initialized successfully")
+        logger.info("=" * 60)
+
+        return input_scanners, output_scanners
+
+    except Exception as e:
+        logger.error("=" * 60)
+        logger.error("STARTUP FAILED - Configuration Error")
+        logger.error("=" * 60)
+        logger.error(f"Error: {e}")
+        logger.error("")
+        logger.error("Common fixes:")
+        logger.error("  - Check config.py for syntax errors")
+        logger.error("  - Verify language names are capitalized (Python, not python)")
+        logger.error("  - Ensure all imports in config.py are valid")
+        logger.error("=" * 60)
+        raise
+
+# Validate config and create scanners at import time
+# This ensures we fail fast with clear error messages
+from llm_guard import scan_prompt, scan_output
+input_scanners, output_scanners = validate_and_create_scanners()
 
 class ScanInputRequest(BaseModel):
     content: str
@@ -37,21 +79,37 @@ class HealthResponse(BaseModel):
     input_scanner_count: int
     output_scanner_count: int
     timestamp: str
+    uptime_seconds: Optional[float] = None
+    scans_completed: Optional[Dict[str, int]] = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Record service start time"""
+    global SERVICE_START_TIME
+    SERVICE_START_TIME = datetime.utcnow()
+    logger.info(f"Service ready at http://127.0.0.1:8765")
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with uptime and scan stats"""
+    uptime = None
+    if SERVICE_START_TIME:
+        uptime = (datetime.utcnow() - SERVICE_START_TIME).total_seconds()
+
     return HealthResponse(
         status="healthy",
         input_scanner_count=len(input_scanners),
         output_scanner_count=len(output_scanners),
-        timestamp=datetime.utcnow().isoformat()
+        timestamp=datetime.utcnow().isoformat(),
+        uptime_seconds=uptime,
+        scans_completed=SCAN_COUNT
     )
 
 @app.post("/scan/input", response_model=ScanResult)
 async def scan_input_content(request: ScanInputRequest):
     """Scan external content for prompt injection and sensitive data"""
     try:
+        SCAN_COUNT["input"] += 1
         sanitized, results_valid, results_score = scan_prompt(
             input_scanners, request.content
         )
@@ -88,6 +146,7 @@ async def scan_input_content(request: ScanInputRequest):
 async def scan_output_content(request: ScanOutputRequest):
     """Scan AI output for sensitive data leakage"""
     try:
+        SCAN_COUNT["output"] += 1
         sanitized, results_valid, results_score = scan_output(
             output_scanners, request.prompt, request.output
         )

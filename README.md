@@ -203,8 +203,43 @@ systemctl --user status llm-guard.service
 # Restart service
 systemctl --user restart llm-guard.service
 
-# Check logs
+# Check logs (service output goes to journal, not file)
 journalctl --user -u llm-guard.service --since "5 minutes ago"
+
+# Check health with uptime stats
+curl -s http://127.0.0.1:8765/health | jq
+```
+
+Example healthy response:
+```json
+{
+  "status": "healthy",
+  "input_scanner_count": 7,
+  "output_scanner_count": 4,
+  "timestamp": "2026-02-04T12:00:00.000000",
+  "uptime_seconds": 3600.5,
+  "scans_completed": {"input": 42, "output": 3}
+}
+```
+
+### Service startup failures
+
+The service logs clear error messages on startup. Common issues:
+
+**Language name capitalization** (config.py):
+```python
+# Wrong - will cause startup failure
+Code(languages=["python", "javascript"])
+
+# Correct - use capitalized names
+Code(languages=["Python", "JavaScript", "Go", "PowerShell"])
+```
+
+**Missing dependencies**:
+```bash
+cd ~/.openclaw/workspace/llm_guard/service
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ### Plugin not loading
@@ -242,6 +277,28 @@ ps aux | grep scanner_service
 cd ~/.openclaw/workspace/llm_guard/service
 source venv/bin/activate
 python test.py
+```
+
+## Systemd Service Features
+
+The included `llm-guard.service` file provides:
+
+- **Auto-restart**: `Restart=always` with 5-second delay between attempts
+- **Crash protection**: `StartLimitBurst=3` in 60 seconds prevents restart loops
+- **Unbuffered output**: `PYTHONUNBUFFERED=1` for real-time logging
+- **Memory limit**: 3GB max to prevent runaway memory usage
+- **Journal logging**: Output goes to systemd journal (use `journalctl` to view)
+
+View service logs:
+```bash
+# Recent logs
+journalctl --user -u llm-guard.service -n 50
+
+# Follow live logs
+journalctl --user -u llm-guard.service -f
+
+# Logs since last boot
+journalctl --user -u llm-guard.service -b
 ```
 
 ## Fallback Behavior
