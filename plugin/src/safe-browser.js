@@ -14,8 +14,9 @@ export function createSafeBrowser({ config, runtime }) {
     return {
         description: "Control web browser with ML-based prompt injection protection. Use instead of browser for external sites.",
 
-        async execute(params, context) {
-            const { action, targetUrl, selector, text, waitFor, timeout: actionTimeout } = params;
+        async execute(toolCallId, params, context) {
+            // OpenClaw passes: (toolCallId, params, context, ...)
+            const { action, targetUrl, selector, text, waitFor, timeout: actionTimeout } = params || {};
 
             // For screenshot action, no scanning needed (binary image)
             if (action === 'screenshot') {

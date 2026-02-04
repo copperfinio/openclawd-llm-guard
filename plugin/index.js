@@ -12,7 +12,7 @@ export default {
     name: "LLM Guard Security",
     description: "ML-based prompt injection protection using LLM Guard",
 
-    async register(api) {
+    register(api) {
         const config = api.pluginConfig || {};
 
         if (config.enabled === false) {

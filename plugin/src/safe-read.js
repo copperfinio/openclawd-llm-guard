@@ -32,8 +32,9 @@ export function createSafeRead({ config, runtime }) {
     return {
         description: "Read file contents with ML-based prompt injection protection. Use instead of read for external/untrusted files.",
 
-        async execute(params, context) {
-            const { path: filePath, offset, limit } = params;
+        async execute(toolCallId, params, context) {
+            // OpenClaw passes: (toolCallId, params, context, ...)
+            const { path: filePath, offset, limit } = params || {};
 
             // Step 1: Read the file
             let content;

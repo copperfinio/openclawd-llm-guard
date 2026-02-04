@@ -14,8 +14,9 @@ export function createSafeWebFetch({ config, runtime }) {
     return {
         description: "Fetch web content with ML-based prompt injection protection. Use instead of web_fetch for external URLs.",
 
-        async execute(params, context) {
-            const { url, extractMode = 'markdown', maxChars } = params;
+        async execute(toolCallId, params, context) {
+            // OpenClaw passes: (toolCallId, params, context, ...)
+            const { url, extractMode = 'markdown', maxChars } = params || {};
 
             // Step 1: Fetch content using runtime's built-in fetch or http client
             let content;
@@ -26,13 +27,13 @@ export function createSafeWebFetch({ config, runtime }) {
                         'Accept': 'text/html,application/xhtml+xml,text/plain',
                     }
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 content = await response.text();
-                
+
                 if (maxChars && content.length > maxChars) {
                     content = content.substring(0, maxChars);
                 }
@@ -46,7 +47,7 @@ export function createSafeWebFetch({ config, runtime }) {
 
             // Step 2: Check if LLM Guard service is healthy
             const healthy = await llmGuard.isHealthy();
-            
+
             if (!healthy) {
                 if (fallbackOnError) {
                     context?.logger?.warn?.(`LLM Guard unavailable, returning unscanned content from ${url}`);
