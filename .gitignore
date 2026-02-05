@@ -21,3 +21,7 @@ service.log
 # OS
 .DS_Store
 Thumbs.db
+CLAUDE.md
+
+# Local docs (not part of the plugin)
+docs/openclaw/

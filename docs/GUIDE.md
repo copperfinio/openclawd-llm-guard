@@ -271,6 +271,43 @@ COMPANY_SENSITIVE_TERMS = [
 
 The scanner correctly distinguishes between legitimate news content and pages containing prompt injection payloads.
 
+### Test URLs for Prompt Injection
+
+Here are specific URLs you can visit to see real prompt injection examples:
+
+#### Direct Test URLs
+
+**Kai Greshake's Research:**
+- `https://greshake.github.io/indirect-prompt-injection/` - Interactive prompt injection demos
+- `https://greshake.github.io/docs/` - Documentation with examples
+
+**Simon Willison's Examples:**
+- `https://simonwillison.net/2023/Apr/25/dual-llm-pattern/` - Real attack examples
+- `https://simonwillison.net/tags/promptinjection/` - Collection of documented cases
+
+**Community Test Sites:**
+- `https://github.com/TakSec/Prompt-Injection-Everywhere` - GitHub repo with live examples
+- `https://huggingface.co/spaces/hackaprompt/hackaprompt-1` - HackAPrompt competition examples
+
+**Lakera Gang (AI Security):**
+- `https://gandalf.lakera.ai/` - Progressive prompt injection game (levels 1-8)
+- `https://www.lakera.ai/gandalf` - Educational prompt injection challenges
+
+**Research Demonstrations:**
+- `https://arxiv.org/abs/2302.12173` - Paper with reproducible examples
+- `https://promptarmor.substack.com/` - Regular prompt injection case studies
+
+### What to Look For
+
+When you visit these sites, you'll see techniques like:
+- **CSS-hidden text** that's invisible to humans but readable by AI
+- **Fake system prompts** trying to override instructions
+- **Data extraction attempts** asking for API keys
+- **Role confusion attacks** trying to make AI think it's a different system
+- **Multi-step attacks** building up over multiple interactions
+
+These are perfect for testing whether your LLM Guard setup actually catches and blocks malicious content before it reaches the agent.
+
 ## Troubleshooting
 
 ### Original tools still working (denial not enforced)

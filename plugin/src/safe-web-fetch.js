@@ -5,6 +5,7 @@
 import { LLMGuardClient } from './llm-guard-client.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { homedir } from 'os';
 
 let originalToolFactory = null;
 
@@ -37,8 +38,8 @@ async function getOriginalTool(config) {
             'openclaw/dist/agents/tools/web-fetch.js',
             // Symlinked in node_modules
             join(dirname(fileURLToPath(import.meta.url)), '..', 'node_modules', 'openclaw', 'dist', 'agents', 'tools', 'web-fetch.js'),
-            // Global install (Linux)
-            '/home/inestyne/.nvm/versions/node/v22.22.0/lib/node_modules/openclaw/dist/agents/tools/web-fetch.js',
+            // Global install via nvm (Linux/macOS)
+            join(homedir(), '.nvm', 'versions', 'node', process.version, 'lib', 'node_modules', 'openclaw', 'dist', 'agents', 'tools', 'web-fetch.js'),
         ];
 
         for (const path of paths) {

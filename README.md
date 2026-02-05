@@ -2,6 +2,10 @@
 
 ML-based prompt injection protection for OpenClaw agents.
 
+**Author:** David Neubauer
+**Copyright:** 2026 Copperfin LLC. All rights reserved.
+**License:** MIT
+
 ## Overview
 
 This package provides three protected tools that scan external content for prompt injection attacks before returning it to the agent:
