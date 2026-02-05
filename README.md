@@ -47,38 +47,27 @@ openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
 
 ### 4. Configure Tool Denial (CRITICAL)
 
-⚠️ **This is the most important step.** Add this to `~/.openclaw/openclaw.json`:
+⚠️ **This is the most important step.** Add a `tools.deny` list to `~/.openclaw/openclaw.json`:
 
 ```json
 {
   "tools": {
-    "sandbox": {
-      "tools": {
-        "deny": ["web_fetch", "browser", "read"],
-        "allow": ["safe_web_fetch", "safe_browser", "safe_read", "exec", "process", "write", "edit", "apply_patch", "image", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "web_search", "memory_search", "message"]
-      }
-    }
+    "deny": ["web_fetch", "browser", "read"]
   }
 }
 ```
 
-**⚠️ IMPORTANT: Configuration Path Matters!**
+This blocks the original unsafe tools globally, forcing the agent to use the `safe_*` versions provided by the LLM Guard plugin.
 
-| Config Path | Effect |
-|-------------|--------|
-| `tools.deny` | ❌ Display/guidance only - NOT enforced at runtime |
-| `tools.sandbox.tools.deny` | ✅ Actually enforced - blocks tool execution |
-
-Verify your configuration:
+**Verify your configuration:**
 ```bash
-openclaw sandbox explain
-```
+# Check that tools are denied
+openclaw config get tools.deny
+# Should output: ["web_fetch", "browser", "read"]
 
-Expected output should show:
-```
-Sandbox tool policy:
-  allow (global): safe_web_fetch, safe_browser, safe_read, ...
-  deny  (global): web_fetch, browser, read
+# Check plugin is loaded
+journalctl --user -u clawdbot-gateway.service | grep -i "llm-guard"
+# Should show: LLM Guard security tools registered: safe_web_fetch, safe_browser, safe_read
 ```
 
 ### 5. Restart Gateway
@@ -107,8 +96,7 @@ journalctl --user -u clawdbot-gateway.service | grep -i llm-guard
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    openclaw.json                            │
-│  tools.sandbox.tools.deny: [web_fetch, browser, read]       │
-│  tools.sandbox.tools.allow: [safe_*, ...]                   │
+│  tools.deny: [web_fetch, browser, read]                     │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -168,9 +156,21 @@ Edit `service/config.py` to add your own sensitive terms:
 
 ### Original tools still working (denial not enforced)
 
-Most common issue: wrong config path.
+Check that your `openclaw.json` has the deny list:
+```bash
+openclaw config get tools.deny
+```
 
-**Wrong** (not enforced):
+If missing, add it:
+```bash
+# Via CLI
+openclaw config set tools.deny '["web_fetch", "browser", "read"]'
+
+# Then restart gateway
+openclaw gateway restart
+```
+
+Or manually edit `~/.openclaw/openclaw.json` and add:
 ```json
 {
   "tools": {
@@ -178,21 +178,6 @@ Most common issue: wrong config path.
   }
 }
 ```
-
-**Correct** (enforced):
-```json
-{
-  "tools": {
-    "sandbox": {
-      "tools": {
-        "deny": ["web_fetch", "browser", "read"]
-      }
-    }
-  }
-}
-```
-
-Verify with: `openclaw sandbox explain`
 
 ### Service not responding
 
