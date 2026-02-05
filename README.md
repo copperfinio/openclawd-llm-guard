@@ -2,9 +2,13 @@
 
 ML-based prompt injection protection for OpenClaw agents.
 
-**Author:** David Neubauer
-**Copyright:** 2026 Copperfin LLC. All rights reserved.
-**License:** MIT
+---
+
+**Created by [David Neubauer](https://www.copperfin.io/)** | [Copperfin LLC](https://www.copperfin.io/)
+
+Copyright 2026 Copperfin LLC. Licensed under [MIT](LICENSE).
+
+---
 
 ## Overview
 
