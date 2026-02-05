@@ -42,17 +42,25 @@ export class LLMGuardClient {
 
     /**
      * Scan input content for threats
+     * @param {string} content - Content to scan
+     * @param {string|null} source - Source URL or file path
+     * @param {string|null} contentType - Content type (e.g., 'text/html') for proper text extraction
      * @returns {Promise<{sanitized_content: string, is_valid: boolean, risk_score: number, threats_detected: string[]}>}
      */
-    async scanInput(content, source = null) {
+    async scanInput(content, source = null, contentType = null) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
         try {
+            const body = { content, source };
+            if (contentType) {
+                body.content_type = contentType;
+            }
+
             const response = await fetch(`${this.serviceUrl}/scan/input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content, source }),
+                body: JSON.stringify(body),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);

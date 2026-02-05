@@ -32,8 +32,7 @@ export function createSafeRead({ config, runtime }) {
     return {
         description: "Read file contents with ML-based prompt injection protection. Use instead of read for external/untrusted files.",
 
-        async execute(toolCallId, params, context) {
-            // OpenClaw passes: (toolCallId, params, context, ...)
+        async execute(_id, params) {
             const { path: filePath, offset, limit } = params || {};
 
             // Step 1: Read the file
@@ -51,23 +50,14 @@ export function createSafeRead({ config, runtime }) {
                 }
             } catch (readError) {
                 return {
-                    success: false,
-                    error: `Failed to read file: ${readError.message}`,
-                    path: filePath
+                    content: [{ type: "text", text: `Error: Failed to read file: ${readError.message}` }]
                 };
             }
 
             // Step 2: Check if path is trusted (skip scanning)
             if (isTrustedPath(filePath)) {
-                context?.logger?.debug?.(`Trusted path, skipping scan: ${filePath}`);
                 return {
-                    success: true,
-                    content,
-                    path: filePath,
-                    security: {
-                        scanned: false,
-                        trusted_path: true
-                    }
+                    content: [{ type: "text", text: content }]
                 };
             }
 
@@ -76,18 +66,12 @@ export function createSafeRead({ config, runtime }) {
 
             if (!healthy) {
                 if (fallbackOnError) {
-                    context?.logger?.warn?.(`LLM Guard unavailable, returning unscanned file: ${filePath}`);
                     return {
-                        success: true,
-                        content,
-                        path: filePath,
-                        warning: "LLM Guard service unavailable - content not scanned"
+                        content: [{ type: "text", text: `[Warning: LLM Guard unavailable - content not scanned]\n\n${content}` }]
                     };
                 } else {
                     return {
-                        success: false,
-                        error: "LLM Guard service unavailable and fallback disabled",
-                        path: filePath
+                        content: [{ type: "text", text: "Error: LLM Guard service unavailable and fallback disabled" }]
                     };
                 }
             }
@@ -96,35 +80,22 @@ export function createSafeRead({ config, runtime }) {
             try {
                 const scanResult = await llmGuard.scanInput(content, filePath);
 
+                let prefix = '';
                 if (!scanResult.is_valid) {
-                    context?.logger?.warn?.(`Threats detected in ${filePath}: ${scanResult.threats_detected.join(', ')}`);
+                    prefix = `[Security Warning: Threats detected - ${scanResult.threats_detected.join(', ')}]\n\n`;
                 }
 
                 return {
-                    success: true,
-                    content: scanResult.sanitized_content,
-                    path: filePath,
-                    security: {
-                        scanned: true,
-                        is_valid: scanResult.is_valid,
-                        risk_score: scanResult.risk_score,
-                        threats_detected: scanResult.threats_detected
-                    }
+                    content: [{ type: "text", text: `${prefix}${scanResult.sanitized_content}` }]
                 };
             } catch (scanError) {
                 if (fallbackOnError) {
-                    context?.logger?.warn?.(`LLM Guard scan failed: ${scanError.message}, returning unscanned file`);
                     return {
-                        success: true,
-                        content,
-                        path: filePath,
-                        warning: `LLM Guard scan failed: ${scanError.message}`
+                        content: [{ type: "text", text: `[Warning: LLM Guard scan failed - ${scanError.message}]\n\n${content}` }]
                     };
                 } else {
                     return {
-                        success: false,
-                        error: `LLM Guard scan failed: ${scanError.message}`,
-                        path: filePath
+                        content: [{ type: "text", text: `Error: LLM Guard scan failed: ${scanError.message}` }]
                     };
                 }
             }
