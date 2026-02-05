@@ -2,8 +2,11 @@
 
 ML-based prompt injection protection for OpenClaw agents.
 
-**Created by David Neubauer** |
-Copyright 2026 [Copperfin LLC](https://www.copperfin.io/). Licensed under [MIT](LICENSE).
+Created by David Neubauer  
+Copyright © 2026 [Copperfin LLC](https://www.copperfin.io/)  
+Licensed under the MIT License.
+
+Built on top of the [LLM Guard](https://github.com/protectai/llm-guard) library by Protect AI.
 
 ## Overview
 
