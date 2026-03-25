@@ -1,57 +1,58 @@
-# LLM Guard Security for OpenClaw
+﻿# OpenClaw 的 LLM Guard 安全插件（中文版）
 
-ML-based prompt injection protection for OpenClaw agents.
+为 OpenClaw 代理提供基于机器学习的提示注入防护。
 
-Created by David Neubauer  
-Copyright © 2026 [Copperfin LLC](https://www.copperfin.io/)  
-Licensed under the MIT License.
+作者：David Neubauer  
+版权：© 2026 [Copperfin LLC](https://www.copperfin.io/)  
+许可证：MIT
 
-Built on top of the [LLM Guard](https://github.com/protectai/llm-guard) library by Protect AI.
+底层依赖 [Protect AI 的 LLM Guard](https://github.com/protectai/llm-guard)。
 
-## Overview
+## 概览
 
-This package provides three protected tools that scan external content for prompt injection attacks before returning it to the agent:
+本项目提供 3 个安全包装工具，会在把外部内容返回给代理前先做安全扫描：
 
-| Original Tool | Protected Tool | Mode | Behavior |
-|---------------|----------------|------|----------|
-| `web_fetch` | `safe_web_fetch` | **BLOCK** | Threats → content blocked, not returned |
-| `browser` | `safe_browser` | **WARN** | Threats → warning prefix, content returned |
-| `read` | `safe_read` | **WARN** | Threats → warning prefix, content returned |
+| 原始工具 | 安全工具 | 模式 | 行为 |
+|---|---|---|---|
+| `web_fetch` | `safe_web_fetch` | **BLOCK** | 命中威胁则拦截，不返回正文 |
+| `browser` | `safe_browser` | **WARN** | 命中威胁则加警告前缀，但仍返回内容 |
+| `read` | `safe_read` | **WARN** | 命中威胁则加警告前缀，但仍返回内容 |
 
-**Why different modes?** `web_fetch` is the primary attack vector for prompt injection (fetching arbitrary URLs), so it blocks malicious content completely. File reads and browser snapshots have more false positives (code files, documentation), so they warn but still return content.
+为什么模式不同：`web_fetch` 是最常见的注入入口（抓任意 URL），默认直接阻断更稳；`read/browser` 在代码和文档场景误报更常见，因此采用告警返回。
 
-## Quick Start
+## 快速开始
 
 ```bash
-# 1. Install and start the Python scanner service
+# 1) 安装并启动 Python 扫描服务
 cd ~/.openclaw/workspace/llm_guard
 ./install.sh
 systemctl --user enable --now llm-guard.service
 
-# 2. Install the OpenClaw plugin
+# 2) 安装 OpenClaw 插件
 openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
 
-# 3. Block the original unsafe tools
+# 3) 全局禁用原始不安全工具
 openclaw config set tools.deny '["web_fetch", "browser", "read"]'
 
-# 4. Restart gateway
+# 4) 重启网关
 openclaw gateway restart
 ```
 
-## Installation (Detailed)
+## 安装步骤（详细）
 
-### 1. Install Python Service
+### 1) 安装 Python 服务
 
 ```bash
 cd ~/.openclaw/workspace/llm_guard
 ./install.sh
 ```
 
-This creates a Python virtual environment and installs LLM Guard dependencies (~1.5-2GB for ML models).
+脚本会创建 Python 虚拟环境并安装依赖（模型下载体积约 1.5~2GB）。
 
-### 2. Start the Service
+### 2) 启动服务
 
-**Option A: Systemd (recommended for production)**
+方式 A：`systemd`（生产推荐）
+
 ```bash
 cp llm-guard.service ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -59,20 +60,21 @@ systemctl --user enable llm-guard.service
 systemctl --user start llm-guard.service
 ```
 
-**Option B: Manual start**
+方式 B：手动启动
+
 ```bash
 ./start.sh
 ```
 
-### 3. Install OpenClaw Plugin
+### 3) 安装 OpenClaw 插件
 
 ```bash
 openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
 ```
 
-### 4. Configure Tool Denial (CRITICAL)
+### 4) 配置工具禁用（关键）
 
-⚠️ **This is the most important step.** Add a `tools.deny` list to `~/.openclaw/openclaw.json`:
+在 `~/.openclaw/openclaw.json` 里加入 `tools.deny`：
 
 ```json
 {
@@ -82,61 +84,66 @@ openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
 }
 ```
 
-This blocks the original unsafe tools globally, forcing the agent to use the `safe_*` versions provided by the LLM Guard plugin.
+这一步会强制代理只能使用 `safe_*` 工具，而不能直接调用原始工具。
 
-**Verify your configuration:**
+配置验证：
+
 ```bash
-# Check that tools are denied
+# 检查 deny 列表
 openclaw config get tools.deny
-# Should output: ["web_fetch", "browser", "read"]
+# 预期: ["web_fetch", "browser", "read"]
 
-# Check sandbox policy
+# 检查沙箱策略
 openclaw sandbox explain
-# Should show: deny (global): web_fetch, browser, read
+# 预期包含: deny (global): web_fetch, browser, read
 
-# Check plugin is loaded
+# 检查插件是否注册成功
 journalctl --user -u clawdbot-gateway.service | grep -i "llm-guard"
-# Should show: LLM Guard security tools registered: safe_web_fetch, safe_browser, safe_read
+# 预期包含: safe_web_fetch, safe_browser, safe_read
 ```
 
-### 5. Restart Gateway
+### 5) 重启网关
 
 ```bash
 systemctl --user restart clawdbot-gateway.service
-# or
+# 或
 openclaw gateway restart
 ```
 
-### 6. Verify Installation
+### 6) 验证安装
 
 ```bash
-# Check service health
+# 健康检查
 curl -s http://127.0.0.1:8765/health | jq
-
-# Expected response:
-# {
-#   "status": "healthy",
-#   "input_scanner_count": 6,
-#   "output_scanner_count": 4,
-#   "timestamp": "2026-02-05T...",
-#   "uptime_seconds": 123.4,
-#   "scans_completed": {"input": 0, "output": 0}
-# }
 ```
 
-## How It Works
+预期返回示例：
 
-### safe_web_fetch (BLOCK mode)
+```json
+{
+  "status": "healthy",
+  "input_scanner_count": 6,
+  "output_scanner_count": 4,
+  "timestamp": "2026-02-05T...",
+  "uptime_seconds": 123.4,
+  "scans_completed": {"input": 0, "output": 0}
+}
+```
 
-When the agent fetches a URL:
+## 工作机制
 
-1. **Wraps** the original `web_fetch` tool (doesn't reimplement)
-2. **Strips** OpenClaw's security wrapper from the content
-3. **Scans** the extracted text with LLM Guard
-4. If threats detected: returns `text: null, blocked: true` with security metadata
-5. If clean: returns original content with `security.scanned: true`
+### safe_web_fetch（BLOCK）
 
-**Example blocked response:**
+当代理抓取 URL 时：
+
+1. 包装原始 `web_fetch`（不是重写实现）。
+2. 去除 OpenClaw 的安全包装层文本。
+3. 用 LLM Guard 扫描提取后的正文。
+4. 命中威胁：返回 `text: null, blocked: true` 和安全元数据。
+5. 未命中：返回原始正文，并标记 `security.scanned: true`。
+
+拦截返回示例：
+
 ```json
 {
   "url": "https://evil.com/prompt-injection",
@@ -154,7 +161,8 @@ When the agent fetches a URL:
 }
 ```
 
-**Example clean response:**
+正常返回示例：
+
 ```json
 {
   "url": "https://cnn.com",
@@ -171,29 +179,27 @@ When the agent fetches a URL:
 }
 ```
 
-### safe_read / safe_browser (WARN mode)
+### safe_read / safe_browser（WARN）
 
-These tools scan content but return it with a warning prefix instead of blocking:
+这两个工具检测到风险时不会直接拦截，而是前置警告再返回内容：
 
-```
+```text
 [Security Warning: Threats detected - PromptInjection, Secrets]
 
 ...original content follows...
 ```
 
-This allows the agent to see the content while being warned about potential threats.
+## 架构
 
-## Architecture
-
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    openclaw.json                            │
-│  tools.deny: [web_fetch, browser, read]                     │
+│  tools.deny: [web_fetch, browser, read]                    │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              LLM Guard Plugin (Node.js)                     │
+│              LLM Guard 插件（Node.js）                      │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │  safe_web_fetch  │  safe_browser  │  safe_read         ││
 │  │    (BLOCK)       │    (WARN)      │    (WARN)          ││
@@ -205,225 +211,73 @@ This allows the agent to see the content while being warned about potential thre
                               │
                               ▼ HTTP POST /scan/input
 ┌─────────────────────────────────────────────────────────────┐
-│              LLM Guard Service (Python)                     │
+│              LLM Guard 服务（Python）                       │
 │  localhost:8765                                             │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │  Scanners:                                              ││
-│  │  - PromptInjection (ML model, threshold 0.9)            ││
-│  │  - Secrets (redacts API keys, tokens)                   ││
-│  │  - InvisibleText (hidden unicode)                       ││
-│  │  - Toxicity (threshold 0.7)                             ││
-│  │  - BanSubstrings (company-specific terms)               ││
-│  │  - Regex (API key patterns)                             ││
+│  │  扫描器：                                                ││
+│  │  - PromptInjection（ML，阈值 0.9）                       ││
+│  │  - Secrets（密钥脱敏）                                   ││
+│  │  - InvisibleText（隐藏 Unicode）                         ││
+│  │  - Toxicity（阈值 0.7）                                  ││
+│  │  - BanSubstrings（企业敏感词）                            ││
+│  │  - Regex（API Key 正则）                                 ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Components
+## 组件说明
 
-### Python Service (`service/`)
-- `scanner_service.py` - FastAPI HTTP endpoints on port 8765
-- `config.py` - Scanner configuration (thresholds, patterns, terms)
-- `health_check.py` - Health check utility
-- `test.py` - Integration tests
+### Python 服务（`service/`）
+- `scanner_service.py`：FastAPI HTTP 服务（8765）
+- `config.py`：扫描器配置（阈值、模式、敏感词）
+- `health_check.py`：健康检查工具
+- `test.py`：集成测试
 
-### OpenClaw Plugin (`plugin/`)
-- `index.js` - Tool registration entry point
-- `src/llm-guard-client.js` - HTTP client for Python service
-- `src/safe-web-fetch.js` - Wraps web_fetch with BLOCK mode scanning
-- `src/safe-browser.js` - Wraps browser with WARN mode scanning
-- `src/safe-read.js` - Wraps read with WARN mode scanning
+### OpenClaw 插件（`plugin/`）
+- `index.js`：工具注册入口
+- `src/llm-guard-client.js`：Python 服务客户端
+- `src/safe-web-fetch.js`：`web_fetch` 的 BLOCK 包装
+- `src/safe-browser.js`：`browser` 的 WARN 包装
+- `src/safe-read.js`：`read` 的 WARN 包装
 
-## Scanner Configuration
+## 扫描器配置
 
-Edit `service/config.py` to customize:
+编辑 `service/config.py` 可调整策略。
 
-### Prompt Injection (ML-based)
+### 提示注入（ML）
+
 ```python
-PromptInjection(threshold=0.9)  # Higher = fewer false positives
+PromptInjection(threshold=0.9)  # 越高越保守，误报更少
 ```
 
-### Secrets Detection
+### 密钥检测
+
 ```python
-Secrets(redact_mode="all")  # Redacts detected secrets with ******
+Secrets(redact_mode="all")  # 命中后以 ****** 脱敏
 ```
 
-**Note:** Use `redact_mode="all"` (string), not `redact_mode=True` (boolean).
+注意：请使用字符串 `"all"`，不要写成布尔值 `True`。
 
-### API Key Patterns
+### API Key 正则
+
 ```python
 BUSINESS_API_PATTERNS = [
-    r"lin_api_[A-Za-z0-9]{32,}",  # Linear API keys
-    r"ya29\.[A-Za-z0-9_-]{100,}", # OAuth2 access tokens
+    r"lin_api_[A-Za-z0-9]{32,}",
+    r"ya29\.[A-Za-z0-9_-]{100,}",
     r"GROQ_API_KEY=[a-zA-Z0-9_-]{50,}",
 ]
 ```
 
-### Company-Sensitive Terms
+### 企业敏感词
+
 ```python
 COMPANY_SENSITIVE_TERMS = [
     "internal-project-name",
     "client-company-name",
-    "secret-codename",
 ]
 ```
 
-## Tested Results
-
-| URL | Result | Risk Score |
-|-----|--------|------------|
-| https://cnn.com | ✅ PASS | 0 |
-| https://github.com/TakSec/Prompt-Injection-Everywhere | ❌ BLOCKED | 1.0 |
-
-The scanner correctly distinguishes between legitimate news content and pages containing prompt injection payloads.
-
-## Troubleshooting
-
-### Original tools still working (denial not enforced)
-
-Check that your `openclaw.json` has the deny list:
-```bash
-openclaw config get tools.deny
-```
-
-If missing, add it:
-```bash
-openclaw config set tools.deny '["web_fetch", "browser", "read"]'
-openclaw gateway restart
-```
-
-Verify with:
-```bash
-openclaw sandbox explain | grep deny
-# Should show: deny (global): web_fetch, browser, read
-```
-
-### Service returning 500 errors
-
-Check the service logs:
-```bash
-journalctl --user -u llm-guard.service --since "5 minutes ago"
-```
-
-Common issue - wrong Secrets parameter:
-```python
-# Wrong - causes "redact mode wasn't recognized True"
-Secrets(redact_mode=True)
-
-# Correct
-Secrets(redact_mode="all")
-```
-
-### Service not responding
-
-```bash
-# Check service status
-systemctl --user status llm-guard.service
-
-# Restart service
-systemctl --user restart llm-guard.service
-
-# Check health
-curl -s http://127.0.0.1:8765/health | jq
-```
-
-### Plugin not loading
-
-```bash
-# Check gateway logs
-journalctl --user -u clawdbot-gateway.service | grep -i "llm-guard"
-
-# Verify plugin syntax
-node --check ~/.openclaw/extensions/llm-guard-security/index.js
-
-# Reinstall plugin
-openclaw plugins install ~/.openclaw/workspace/llm_guard/plugin
-systemctl --user restart clawdbot-gateway.service
-```
-
-### False Positives
-
-Adjust thresholds in `service/config.py`:
-```python
-PromptInjection(threshold=0.9)  # Raise to reduce false positives (was 0.8)
-Toxicity(threshold=0.7)
-```
-
-### Memory Usage
-
-Expected: ~1.5-2GB for ML models
-```bash
-ps aux | grep scanner_service
-```
-
-## Fallback Behavior
-
-When LLM Guard service is unavailable:
-- `safe_web_fetch`: Returns content with `security.scanned: false` warning
-- `safe_read`/`safe_browser`: Returns content with warning prefix
-- Health check cached for 30 seconds
-
-Configure in plugin:
-```javascript
-const config = {
-    serviceUrl: 'http://127.0.0.1:8765',
-    timeout: 5000,
-    fallbackOnError: true  // false = block if scanner unavailable
-};
-```
-
-## Systemd Service Features
-
-The included `llm-guard.service` file provides:
-
-- **Auto-restart**: `Restart=always` with 5-second delay
-- **Crash protection**: `StartLimitBurst=3` in 60 seconds
-- **Unbuffered output**: `PYTHONUNBUFFERED=1` for real-time logging
-- **Memory limit**: 3GB max
-- **Journal logging**: Output goes to systemd journal
-
-View service logs:
-```bash
-journalctl --user -u llm-guard.service -n 50     # Recent logs
-journalctl --user -u llm-guard.service -f        # Follow live
-journalctl --user -u llm-guard.service -b        # Since boot
-```
-
-## File Structure
-
-```
-llm_guard/
-├── README.md              # This file
-├── install.sh             # Initial setup script
-├── start.sh               # Manual start script
-├── llm-guard.service      # Systemd service file
-├── service/
-│   ├── config.py          # Scanner configuration
-│   ├── scanner_service.py # FastAPI endpoints
-│   ├── health_check.py    # Health utility
-│   ├── test.py            # Integration tests
-│   ├── requirements.txt   # Python dependencies
-│   └── venv/              # Python virtual environment
-└── plugin/
-    ├── index.js           # Tool registration
-    ├── package.json       # npm dependencies
-    ├── openclaw.plugin.json
-    └── src/
-        ├── llm-guard-client.js
-        ├── safe-web-fetch.js
-        ├── safe-browser.js
-        └── safe-read.js
-```
-
-## Requirements
-
-- OpenClaw: v2026.2.1+
-- LLM Guard: 0.3.15+
-- Python: 3.10+
-- Node.js: 22+
-
-## References
-
-- [LLM Guard Documentation](https://github.com/protectai/llm-guard)
-- [OpenClaw Plugin Documentation](https://docs.openclaw.ai/plugins)
-- [Prompt Injection Test Cases](https://github.com/TakSec/Prompt-Injection-Everywhere)
+## 维护建议
+- 定期升级 LLM Guard 依赖与模型。
+- 把误报样本加入测试集，按业务调整阈值。
+- 对 `safe_web_fetch` 持续保持 BLOCK，避免高风险 URL 直通。
